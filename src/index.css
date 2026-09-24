@@ -1358,6 +1358,10 @@ a:focus:not(:focus-visible),
   width: 100%;
 }
 
+.mission-map-grid-empty {
+  display: grid;
+}
+
 .mission-map-grid-viewport {
   height: min(70vh, 720px);
   min-height: 420px;
@@ -1438,9 +1442,7 @@ a:focus:not(:focus-visible),
 }
 
 .no-missions-found {
-  display: grid;
-  place-items: center;
-  min-height: 420px;
+  grid-column: 1 / -1;
   text-align: center;
   padding: var(--space-2xl);
   color: var(--text-muted);
@@ -2145,6 +2147,13 @@ a:focus:not(:focus-visible),
 
   .mission-map-grid {
     gap: var(--space-md);
+  }
+
+  .mission-map-grid-viewport {
+    height: auto;
+    min-height: 0;
+    overflow-y: visible;
+    contain: none;
   }
 
   .mission-map-grid-row {

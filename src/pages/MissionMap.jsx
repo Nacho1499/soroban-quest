@@ -97,15 +97,12 @@ export default function MissionMap() {
 
   const missionGridVirtualizer = useVirtualizer({
     count: missionRows.length,
+    enabled: filteredMissions.length > 0,
     getScrollElement: () => missionGridRef.current,
     estimateSize: () => 240,
     overscan: 2,
     measureElement: (element) => element.getBoundingClientRect().height,
   });
-
-  useEffect(() => {
-    missionGridVirtualizer.scrollToIndex(0);
-  }, [searchTerm, selectedDifficulty, selectedChapter, missionGridVirtualizer]);
 
   const handleMissionClick = (mission) => {
     if (mission.unlocked) {
@@ -574,9 +571,12 @@ export default function MissionMap() {
         </div>
       </div>
 
-      <div className="mission-map-grid-viewport" ref={missionGridRef}>
+      <div
+        className={filteredMissions.length ? 'mission-map-grid-viewport' : undefined}
+        ref={filteredMissions.length ? missionGridRef : null}
+      >
         {filteredMissions.length === 0 ? (
-          <div className="mission-map-grid no-missions-found" role="status">
+          <div className="mission-map-grid mission-map-grid-empty no-missions-found" role="status">
             <p>{t('missionMap.noResults')}</p>
           </div>
         ) : (
