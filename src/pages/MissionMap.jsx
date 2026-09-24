@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { loadProgress } from '../systems/storage';
 import { getAllMissions, isMissionUnlocked } from '../systems/missionLoader';
 import { useTranslation } from '../i18n/useTranslation';
@@ -54,6 +55,9 @@ export default function MissionMap() {
     }));
   }, [missions, state.completedMissions]);
 
+  const missionGridRef = useRef(null);
+  const [missionGridColumns, setMissionGridColumns] = useState(1);
+
   const filteredMissions = useMemo(() => {
     return missionStates.filter((mission) => {
       const matchesSearch =
@@ -66,6 +70,42 @@ export default function MissionMap() {
       return matchesSearch && matchesDifficulty && matchesChapter;
     });
   }, [missionStates, searchTerm, selectedDifficulty, selectedChapter]);
+
+  useEffect(() => {
+    if (!missionGridRef.current || typeof ResizeObserver === 'undefined') return undefined;
+
+    const updateColumns = (width) => {
+      setMissionGridColumns(width >= 900 ? 3 : width >= 560 ? 2 : 1);
+    };
+    const node = missionGridRef.current;
+    updateColumns(node.getBoundingClientRect().width);
+
+    const observer = new ResizeObserver((entries) => {
+      if (entries[0]) updateColumns(entries[0].contentRect.width);
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const missionRows = useMemo(() => {
+    const rows = [];
+    for (let index = 0; index < filteredMissions.length; index += missionGridColumns) {
+      rows.push(filteredMissions.slice(index, index + missionGridColumns));
+    }
+    return rows;
+  }, [filteredMissions, missionGridColumns]);
+
+  const missionGridVirtualizer = useVirtualizer({
+    count: missionRows.length,
+    getScrollElement: () => missionGridRef.current,
+    estimateSize: () => 240,
+    overscan: 2,
+    measureElement: (element) => element.getBoundingClientRect().height,
+  });
+
+  useEffect(() => {
+    missionGridVirtualizer.scrollToIndex(0);
+  }, [searchTerm, selectedDifficulty, selectedChapter, missionGridVirtualizer]);
 
   const handleMissionClick = (mission) => {
     if (mission.unlocked) {
@@ -534,28 +574,43 @@ export default function MissionMap() {
         </div>
       </div>
 
-      <div className="mission-map-grid">
+      <div className="mission-map-grid-viewport" ref={missionGridRef}>
         {filteredMissions.length === 0 ? (
-          <div className="no-missions-found" role="status">
+          <div className="mission-map-grid no-missions-found" role="status">
             <p>{t('missionMap.noResults')}</p>
           </div>
         ) : (
-          filteredMissions.map((m) => (
-            <div
-              key={m.id}
-              className={`mission-card ${m.completed ? 'completed' : ''} ${!m.unlocked ? 'locked' : ''}`}
-              onClick={() => handleMissionClick(m)}
-              onMouseEnter={() => handleMissionHover(m)}
-              onKeyDown={(e) => {
-                if (m.unlocked && (e.key === 'Enter' || e.key === ' ')) {
-                  e.preventDefault();
-                  handleMissionClick(m);
-                }
-              }}
-              role="button"
-              tabIndex={m.unlocked ? 0 : -1}
-              aria-label={`Mission card ${m.order}: ${m.title}. Chapter ${m.chapter}. Reward: ${m.xpReward} XP. Difficulty: ${m.difficulty}.${m.completed ? ' Status: Completed.' : !m.unlocked ? ' Status: Locked.' : ' Status: Available.'}`}
-            >
+          <div
+            className="mission-map-grid"
+            style={{ height: `${missionGridVirtualizer.getTotalSize()}px` }}
+          >
+            {missionGridVirtualizer.getVirtualItems().map((virtualRow) => (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={missionGridVirtualizer.measureElement}
+                className="mission-map-grid-row"
+                style={{
+                  transform: `translateY(${virtualRow.start}px)`,
+                  gridTemplateColumns: `repeat(${missionGridColumns}, minmax(0, 1fr))`,
+                }}
+              >
+                {missionRows[virtualRow.index].map((m) => (
+                  <div
+                    key={m.id}
+                    className={`mission-card ${m.completed ? 'completed' : ''} ${!m.unlocked ? 'locked' : ''}`}
+                    onClick={() => handleMissionClick(m)}
+                    onMouseEnter={() => handleMissionHover(m)}
+                    onKeyDown={(e) => {
+                      if (m.unlocked && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault();
+                        handleMissionClick(m);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={m.unlocked ? 0 : -1}
+                    aria-label={`Mission card ${m.order}: ${m.title}. Chapter ${m.chapter}. Reward: ${m.xpReward} XP. Difficulty: ${m.difficulty}.${m.completed ? ' Status: Completed.' : !m.unlocked ? ' Status: Locked.' : ' Status: Available.'}`}
+                  >
               <div className="mission-card-header">
                 <span className="mission-card-chapter">
                   {t('missionMap.card.chapterMission', { chapter: m.chapter, mission: m.order })}
@@ -594,8 +649,11 @@ export default function MissionMap() {
                   {t('missionMap.card.locked')}
                 </div>
               )}
-            </div>
-          ))
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
